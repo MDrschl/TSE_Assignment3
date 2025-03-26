@@ -9,27 +9,25 @@ library(polynom)
 
 ### Task 1
 
-### a)
-
-# Define the polynomials
+### 1.a) Define the polynomials
 Theta <- c(1, -4.75, 7.375, -5, 1.5625)
 Phi <- c(1, -1, 0.5)
 
+### 1.b) Calculate roots using polyroot
 ar_roots <- polyroot(Theta)
 print(ar_roots)
-
 
 ma_roots <- polyroot(Phi)
 print(ma_roots)
 
+
 # Perform polynomial division (Theta / Phi)
-Q <- polynom::polynomial(Theta) / 
-polynom::polynomial(Phi)
+Q <- polynom::polynomial(Theta)/polynom::polynomial(Phi)
 print(Q)
 
-mod_phi <- Mod(phi_roots)
-ar_part_roots  <- phi_roots[mod_phi > 1]
-ma_part_roots  <- phi_roots[mod_phi < 1]
+mod_ma_roots <- Mod(ma_roots)
+ar_part_roots  <- ma_roots[mod_ma_roots > 1]
+ma_part_roots  <- ma_roots[mod_ma_roots < 1]
 
 ## Reconstruct polynomials from the chosen roots:
 poly_from_roots <- function(r) {
