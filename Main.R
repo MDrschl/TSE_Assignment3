@@ -44,18 +44,16 @@ print(ma_roots_new)
 library(tseries)
 library(xts)
 library(zoo)
-#a)
+library(forecast)
+##############################################################################
+# a) Time Series Plot
+##############################################################################
 # ------------------------------------------------
 # 1) Read the data and create a time-series object
 # ------------------------------------------------
-
-# Read from a text file. Adjust path as necessary.
-# Assuming the file has a header with one column named 'GDP'.
 file_path <- file.choose()
 print(file_path)
-
 raw_vals <- scan(file_path, skip = 7)
-
 df <- read.table(
   file = file_path,
   skip = 7,       # skip lines 1–7
@@ -64,23 +62,17 @@ df <- read.table(
   strip.white = TRUE
 )
 
-# Assign meaningful column names manually
+# Assign column names manually
 colnames(df) <- c("money", "gdp", "cpi")
-
-# Check result
 head(df)
 
-# Extract the GDP column (adjust the name 'GDP' if different).
+# Extract the GDP column
 gdp <- df$GDP
 gdp <- as.numeric(df$gdp)
-
 quarters <- seq(as.yearqtr("1970 Q1"), by = 0.25, length.out = length(gdp))
-date_index <- as.Date(quarters)  # Convert to Date (this will be the first day of each quarter)
-
-# Create the xts object with the GDP data and the time index
+date_index <- as.Date(quarters)
 gdp_xts <- xts(gdp, order.by = date_index)
 
-# Display the first few observations
 head(gdp_xts)
 
 # ------------------------------------------------
@@ -90,41 +82,107 @@ plot(gdp_xts,
      main = "Real Euro GDP (1970Q1 - 2014Q4)",
      xlab = "Time (Quarterly)",
      ylab = "GDP (in dataset units)")
-
-# Brief Comment:
-# The series trends upward over time, indicating nonstationarity with an increasing mean,
-# which is typical of real GDP data.
-
 # ------------------------------------------------
 # 3) Compute and plot the quarterly growth rate of real GDP
 # ------------------------------------------------
-# Compute quarterly growth rate as 100 * log differences
 gdp_growth <- diff(log(gdp_xts)) * 100
-
 plot(gdp_growth,
      main = "Quarterly Growth Rate of Real Euro GDP (log diff * 100)",
      xlab = "Time (Quarterly)",
      ylab = "Percent")
-
-# Brief Comment:
-# The growth rate series appears more stationary, fluctuating around zero.
-
 # ------------------------------------------------
 # 4) Perform Augmented Dickey-Fuller (ADF) tests
 # ------------------------------------------------
-
-
-# ADF test on levels (real GDP)
-# Convert the xts object to a numeric vector for the test
 adf_level <- adf.test(as.numeric(gdp_xts))
 print(adf_level)
-
-# Compute quarterly growth rate as 100 * log differences
 gdp_growth <- diff(log(gdp_xts)) * 100
-
-# Remove NA values (often the first element is NA after differencing)
 gdp_growth <- na.omit(gdp_growth)
 
-# Load the tseries package and run the Augmented Dickey-Fuller test on the cleaned series
+# Augmented Dickey-Fuller test 
 adf_growth <- adf.test(as.numeric(gdp_growth))
 print(adf_growth)
+
+##############################################################################
+# b) Box-Jenkins Approach for Real GDP (Growth) Model Selection
+##############################################################################
+
+
+gdp_growth <- na.omit(gdp_growth)
+acf(gdp_growth, main = "ACF of GDP Growth")
+pacf(gdp_growth, main = "PACF of GDP Growth")
+
+# Fit AR(p) models for p = 0..9, record AIC and BIC
+pmax <- 9
+n <- length(gdp_growth)
+
+results <- data.frame(
+  p   = 0:pmax,
+  AIC = NA_real_,
+  BIC = NA_real_
+)
+
+for (p in 0:pmax) {
+  fit <- Arima(gdp_growth, order = c(p, 0, 0), include.mean = TRUE)
+  
+  results$AIC[p + 1] <- fit$aic
+  
+  k <- p + 1
+  results$BIC[p + 1] <- fit$aic + (2 * k - 2) * log(n)
+}
+
+print(results)
+
+# 4. Identify which p minimizes AIC and BIC
+best_aic_p <- results$p[which.min(results$AIC)]
+best_bic_p <- results$p[which.min(results$BIC)]
+cat("Best p by AIC:", best_aic_p, "\n")
+cat("Best p by BIC:", best_bic_p, "\n")
+
+##############################################################################
+# c) Estimate and Forecast the Chosen AR Models, Check Diagnostics
+##############################################################################
+
+chosen_p <- best_aic_p
+ar_fit <- Arima(gdp_growth, order = c(chosen_p, 0, 0), include.mean = TRUE)
+summary(ar_fit)
+
+# Forecast h=8 quarters ahead (2 years), for example
+ar_forecast <- forecast(ar_fit, h = 8)
+plot(ar_forecast, main = paste("AR(", chosen_p, ") Forecast of GDP Growth", sep=""))
+
+# 1) Standardized residuals
+std_resid <- residuals(ar_fit) / sd(residuals(ar_fit))
+plot(std_resid, type = "l", main = "Standardized Residuals")
+abline(h = 0, col = "red")
+
+# 2) ACF/PACF of residuals
+acf(std_resid, main = "ACF of Standardized Residuals")
+pacf(std_resid, main = "PACF of Standardized Residuals")
+
+# 3) Ljung-Box test for autocorrelatio
+Box.test(std_resid, lag = 12, type = "Ljung-Box")
+
+# 4) Shapiro-Wilk test for normality
+shapiro.test(std_resid)
+
+##############################################################################
+# d) Use the Growth Rate of Real GDP from 1972Q2–2007Q4 and Estimate ARIMA
+##############################################################################
+
+gdp_growth_vec <- as.numeric(gdp_growth)
+gdp_growth_ts <- ts(
+  gdp_growth_vec,
+  start = c(1970, 1),   
+  frequency = 4         
+)
+
+gdp_growth_sub <- window(gdp_growth_ts, start = c(1972, 2), end = c(2007, 4))
+head(gdp_growth_sub)
+
+model_sub <- auto.arima(gdp_growth_sub)
+summary(model_sub)
+
+fc_sub <- forecast(model_sub, h = 4)
+plot(fc_sub, main = "ARIMA Forecast (1972Q2–2007Q4 Subsample)")
+
+
