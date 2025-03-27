@@ -124,7 +124,6 @@ summary(adf1)
 ##############################################################################
 
 
-growth <- na.omit(growth)
 acf(growth, main = "ACF of GDP Growth")
 pacf(growth, main = "PACF of GDP Growth")
 
@@ -155,51 +154,107 @@ best_bic_p <- results$p[which.min(results$BIC)]
 cat("Best p by AIC:", best_aic_p, "\n")
 cat("Best p by BIC:", best_bic_p, "\n")
 
+# Check back with internal function from the forecast package
+optorder = auto.arima(growth,d=0)
+optorder # --> gives similar results
+
 ##############################################################################
 # c) Estimate and Forecast the Chosen AR Models, Check Diagnostics
 ##############################################################################
 
-chosen_p <- best_aic_p
-ar_fit <- Arima(growth, order = c(chosen_p, 0, 0), include.mean = TRUE)
+# best model according to AIC 
+
+# Fit the chosen AR(p) model
+ar_fit <- Arima(growth, order = c(best_aic_p, 0, 0), include.mean = TRUE)
+
+# Display a summary
 summary(ar_fit)
 
 # Forecast h=8 quarters ahead (2 years), for example
 ar_forecast <- forecast(ar_fit, h = 8)
-plot(ar_forecast, main = paste("AR(", chosen_p, ") Forecast of GDP Growth", sep=""))
+plot(ar_forecast, main = paste("AR(", best_aic_p, ") Forecast of GDP Growth", sep=""))
 
+# -------------------------
+# Residual Diagnostics
+# -------------------------
 # 1) Standardized residuals
 std_resid <- residuals(ar_fit) / sd(residuals(ar_fit))
-plot(std_resid, type = "l", main = "Standardized Residuals")
+plot(std_resid, type = "l", main = "Standardized Residuals: AR(2)")
 abline(h = 0, col = "red")
 
 # 2) ACF/PACF of residuals
-acf(std_resid, main = "ACF of Standardized Residuals")
-pacf(std_resid, main = "PACF of Standardized Residuals")
+acf(std_resid, main = "ACF of Standardized Residuals: AR(2)")
+pacf(std_resid, main = "PACF of Standardized Residuals: AR(2)")
 
-# 3) Ljung-Box test for autocorrelatio
+# 3) Ljung-Box test for autocorrelation
 Box.test(std_resid, lag = 12, type = "Ljung-Box")
 
-# 4) Shapiro-Wilk test for normality
+# 4) Shapiro-Wilk test for normality (small samples) 
 shapiro.test(std_resid)
+
+############################################
+# best model according to BIC 
+
+# Fit the chosen AR(p) model
+ar_fit_bic <- Arima(growth, order = c(best_bic_p, 0, 0), include.mean = TRUE)
+
+# Display a summary
+summary(ar_fit_bic)
+
+# Forecast h=8 quarters ahead (2 years), for example
+ar_forecast_bic <- forecast(ar_fit_bic, h = 8)
+plot(ar_forecast_bic, main = paste("AR(", best_bic_p, ") Forecast of GDP Growth", sep=""))
+
+# -------------------------
+# Residual Diagnostics
+# -------------------------
+# 1) Standardized residuals
+std_resid_bic <- residuals(ar_fit_bic) / sd(residuals(ar_fit_bic))
+plot(std_resid_bic, type = "l", main = "Standardized Residuals: AR(1)")
+abline(h = 0, col = "red")
+
+# 2) ACF/PACF of residuals
+acf(std_resid_bic, main = "ACF of Standardized Residuals: AR(1)")
+pacf(std_resid_bic, main = "PACF of Standardized Residuals: AR(1)")
+
+# 3) Ljung-Box test for autocorrelation
+Box.test(std_resid_bic, lag = 12, type = "Ljung-Box")
+
+# 4) Shapiro-Wilk test for normality (small samples) 
+shapiro.test(std_resid_bic)
 
 ##############################################################################
 # d) Use the Growth Rate of Real GDP from 1972Q2–2007Q4 and Estimate ARIMA
 ##############################################################################
 
 growth_vec <- as.numeric(growth)
+
 growth_ts <- ts(
   growth_vec,
-  start = c(1970, 1),   
-  frequency = 4         
+  start = c(1970, 1), # year, quarter
+  frequency = 4         # quarterly
 )
 
 growth_sub <- window(growth_ts, start = c(1972, 2), end = c(2007, 4))
 head(growth_sub)
 
-model_sub <- auto.arima(growth_sub)
-summary(model_sub)
+ar2_model <- Arima(growth_sub, order = c(2, 0, 0))
 
-fc_sub <- forecast(model_sub, h = 4)
-plot(fc_sub, main = "ARIMA Forecast (1972Q2–2007Q4 Subsample)")
+summary(ar2_model)
 
+# Forecast h=8 quarters ahead (2 years)
+ar_forecast_2 <- forecast(ar2_model, h = 8)
 
+# Create forecast plot
+plot(ar_forecast_2, main = "AR(2) 2-Year GDP Growth Forecast", 
+     xlab = "Year", ylab = "GDP Growth Rate", ylim = c(-3, 2))
+actual_forecast_period <- window(growth_ts, 
+                                 start = c(2008, 1), 
+                                 end = c(2009, 4))
+lines(actual_forecast_period, col = "red", lwd = 2)
+legend("topleft", 
+       legend = c("Forecast", "Actual"), 
+       col = c("blue", "red"), 
+       lty = 1,
+       lwd = 2,
+       bty = "n")
