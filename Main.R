@@ -192,6 +192,15 @@ Box.test(std_resid, lag = 12, type = "Ljung-Box")
 # 4) Shapiro-Wilk test for normality (small samples) 
 shapiro.test(std_resid)
 
+# 5) Breuch Pagan test
+
+df_bp <- data.frame(
+  resid_sq = std_resid^2,
+  fitted   = fitted(ar_fit)
+)
+bp_result <- bptest(resid_sq ~ fitted, data = df_bp)
+print(bp_result)
+
 ############################################
 # best model according to BIC 
 
@@ -222,6 +231,15 @@ Box.test(std_resid_bic, lag = 12, type = "Ljung-Box")
 
 # 4) Shapiro-Wilk test for normality (small samples) 
 shapiro.test(std_resid_bic)
+
+# 5) Breuch Pagan test
+
+df_bp_bic <- data.frame(
+  resid_sq_bic = std_resid_bic^2,
+  fitted_bic   = fitted(ar_fit_bic)
+)
+bp_result_bic <- bptest(resid_sq_bic ~ fitted_bic, data = df_bp_bic)
+print(bp_result_bic)
 
 ##############################################################################
 # d) Use the Growth Rate of Real GDP from 1972Q2–2007Q4 and Estimate ARIMA
